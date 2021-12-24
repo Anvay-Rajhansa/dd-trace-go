@@ -39,6 +39,8 @@ type (
 	HandlerOperationRes struct {
 		// Status corresponds to the address `server.response.status`.
 		Status int
+		// Headers corresponds to the address `server.response.headers`
+		Headers map[string][]string
 	}
 )
 
@@ -57,7 +59,7 @@ func WrapHandler(handler http.Handler, span ddtrace.Span) http.Handler {
 			if mw, ok := w.(interface{ Status() int }); ok {
 				status = mw.Status()
 			}
-			events := op.Finish(HandlerOperationRes{Status: status})
+			events := op.Finish(HandlerOperationRes{Status: status, Headers: w.Header()})
 			if len(events) == 0 {
 				return
 			}
@@ -66,7 +68,7 @@ func WrapHandler(handler http.Handler, span ddtrace.Span) http.Handler {
 			if err != nil {
 				remoteIP = r.RemoteAddr
 			}
-			SetSecurityEventTags(span, events, remoteIP, args.Headers)
+			SetSecurityEventTags(span, events, remoteIP, args.Headers, w.Header())
 		}()
 		handler.ServeHTTP(w, r)
 	})
