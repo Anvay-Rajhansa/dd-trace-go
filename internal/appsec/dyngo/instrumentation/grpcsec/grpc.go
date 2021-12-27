@@ -26,7 +26,9 @@ import (
 // Every type of RPC, unary, client streaming, server streaming, and
 // bidirectional streaming RPCs, can be all represented with a HandlerOperation
 // having one or several ReceiveOperation.
-// The send operation is not required for now and therefore not defined.
+// The send operation is not required for now and therefore not defined, which
+// means that server and bidirectional streaming RPCs currently have the same
+// run-time representation as unary and client streaming RPCs.
 type (
 	// HandlerOperation represents a gRPC server handler operation.
 	// It must be created with StartHandlerOperation() and finished with its
