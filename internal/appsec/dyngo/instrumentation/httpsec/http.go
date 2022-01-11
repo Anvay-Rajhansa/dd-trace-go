@@ -39,8 +39,6 @@ type (
 	HandlerOperationRes struct {
 		// Status corresponds to the address `server.response.status`.
 		Status int
-		// Headers corresponds to the address `server.response.headers`
-		Headers map[string][]string
 	}
 )
 
@@ -59,7 +57,7 @@ func WrapHandler(handler http.Handler, span ddtrace.Span) http.Handler {
 			if mw, ok := w.(interface{ Status() int }); ok {
 				status = mw.Status()
 			}
-			events := op.Finish(HandlerOperationRes{Status: status, Headers: w.Header()})
+			events := op.Finish(HandlerOperationRes{Status: status})
 			if len(events) == 0 {
 				return
 			}
