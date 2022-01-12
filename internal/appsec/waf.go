@@ -62,11 +62,11 @@ func registerWAF(rules []byte, timeout time.Duration) (unreg dyngo.UnregisterFun
 	var unregisterHTTP, unregisterGRPC dyngo.UnregisterFunc
 	if len(httpAddresses) > 0 {
 		log.Debug("appsec: registering http waf listening to addresses %v", httpAddresses)
-		unregisterHTTP = dyngo.Register(newWAFEventListener(waf, httpAddresses, timeout))
+		unregisterHTTP = dyngo.Register(newHTTPWAFEventListener(waf, httpAddresses, timeout))
 	}
 	if len(grpcAddresses) > 0 {
 		log.Debug("appsec: registering grpc waf listening to addresses %v", grpcAddresses)
-		unregisterHTTP = dyngo.Register(newGRPCWAFEventListener(waf, grpcAddresses, timeout))
+		unregisterGRPC = dyngo.Register(newGRPCWAFEventListener(waf, grpcAddresses, timeout))
 	}
 
 	// Return an unregistration function that will also release the WAF instance.
@@ -82,7 +82,7 @@ func registerWAF(rules []byte, timeout time.Duration) (unreg dyngo.UnregisterFun
 }
 
 // newWAFEventListener returns the WAF event listener to register in order to enable it.
-func newWAFEventListener(handle *waf.Handle, addresses []string, timeout time.Duration) dyngo.EventListener {
+func newHTTPWAFEventListener(handle *waf.Handle, addresses []string, timeout time.Duration) dyngo.EventListener {
 	return httpsec.OnHandlerOperationStart(func(op *httpsec.Operation, args httpsec.HandlerOperationArgs) {
 		// At the moment, AppSec doesn't block the requests, and so we can use the fact we are in monitoring-only mode
 		// to call the WAF only once at the end of the handler operation.
