@@ -8,14 +8,12 @@ package echo
 
 import (
 	"math"
-	"net"
 	"strconv"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/DataDog/dd-trace-go.v1/internal/appsec"
-	"gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/httpsec"
 
 	"github.com/labstack/echo/v4"
 )
@@ -49,15 +47,19 @@ func Middleware(opts ...Option) echo.MiddlewareFunc {
 			if spanctx, err := tracer.Extract(tracer.HTTPHeadersCarrier(request.Header)); err == nil {
 				opts = append(opts, tracer.ChildOf(spanctx))
 			}
+			var finishOpts []tracer.FinishOption
+			if cfg.noDebugStack {
+				finishOpts = append(finishOpts, tracer.NoDebugStack())
+			}
 			span, ctx := tracer.StartSpanFromContext(request.Context(), "http.request", opts...)
-			defer span.Finish()
+			defer func() { span.Finish(finishOpts...) }()
 
 			// pass the span through the request context
 			c.SetRequest(request.WithContext(ctx))
 			// serve the request to the next middleware
 			err := next(c)
 			if err != nil {
-				span.SetTag(ext.Error, err)
+				finishOpts = append(finishOpts, tracer.WithError(err))
 				// invokes the registered HTTP error handler
 				c.Error(err)
 			}
@@ -65,29 +67,5 @@ func Middleware(opts ...Option) echo.MiddlewareFunc {
 			span.SetTag(ext.HTTPCode, strconv.Itoa(c.Response().Status))
 			return err
 		}
-	}
-}
-
-func withAppSec(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		req := c.Request()
-		span, ok := tracer.SpanFromContext(req.Context())
-		if !ok {
-			return next(c)
-		}
-		httpsec.SetAppSecTags(span)
-		args := httpsec.MakeHandlerOperationArgs(req)
-		op := httpsec.StartOperation(args, nil)
-		defer func() {
-			events := op.Finish(httpsec.HandlerOperationRes{Status: c.Response().Status})
-			if len(events) > 0 {
-				remoteIP, _, err := net.SplitHostPort(req.RemoteAddr)
-				if err != nil {
-					remoteIP = req.RemoteAddr
-				}
-				httpsec.SetSecurityEventTags(span, events, remoteIP, args.Headers, c.Response().Writer.Header())
-			}
-		}()
-		return next(c)
 	}
 }
